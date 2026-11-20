@@ -10,7 +10,10 @@ if (-not (Test-Path -LiteralPath $python)) {
 if ($LASTEXITCODE -ne 0) { throw 'Не удалось установить зависимости' }
 
 & $python -m PyInstaller --noconfirm --clean --onefile --windowed --name Velox `
+    --icon (Join-Path $project 'Velox.ico') `
     --add-data "$(Join-Path $project 'web');web" `
+    --add-data "$(Join-Path $project 'profiles');profiles" `
+    --add-data "$(Join-Path $project 'third_party');third_party" `
     --paths $project --distpath (Join-Path $project 'dist') `
     --workpath (Join-Path $project 'build') `
     --specpath $project (Join-Path $project 'main.py')

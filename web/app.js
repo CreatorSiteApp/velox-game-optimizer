@@ -128,12 +128,15 @@
       };
     },
     async apply_vibrance(level) { await sleep(260); return { ok: true, level }; },
+    async get_game_contrast() { return { ok: true, level: 100, active: false, supported: true }; },
+    async set_game_contrast(level) { return { ok: true, level }; },
     async apply_resolution(w, h, hz) { await sleep(700); return { ok: true, message: `${w}×${h}, ${hz} Гц` }; },
     async reset_resolution() { await sleep(500); return { ok: true }; },
     async apply_game_preset() { await sleep(850); return { ok: true }; },
+    async apply_nvidia_profile() { await sleep(350); return { ok: true }; },
     async apply_game_options() { await sleep(200); return { ok: true }; },
     async toggle_fps_overlay(enabled) { await sleep(220); return { ok: true, enabled }; },
-    async get_overlay_settings() { return { ok: true, position: 'top_left', offset_x: 16, offset_y: 16, dpi: 800, nickname: 'Player', keys: ['W', 'A', 'S', 'D', 'Shift', 'Space'], image_path: null }; },
+    async get_overlay_settings() { return { ok: true, position: 'top_left', offset_x: 16, offset_y: 16, dpi: 800, nickname: 'Player', keys: ['Q', 'W', 'E', 'Shift', 'A', 'S', 'D', 'Ctrl', 'Space'], image_path: null }; },
     async set_overlay_settings(settings) { return { ok: true, ...settings }; },
     async choose_overlay_image() { return { ok: false, error: 'Выбор файла доступен в десктопной программе' }; },
     async clear_overlay_image() { return { ok: true }; },
@@ -829,7 +832,7 @@
         const profLabel = prof ? `Профиль: ${PRESETS[prof.preset].title}` : 'Профиль не применялся';
         return `
           <button class="game${missing ? ' is-missing' : ''}" type="button" data-game="${g.id}" aria-label="${esc(g.name)}: ${st.label.toLowerCase()}. Открыть настройки графики">
-            <span class="game__art" aria-hidden="true">${g.art('g' + (++this.uid))}</span>
+            <span class="game__art game__art--${g.id}" aria-hidden="true"><img src="assets/${g.id}.png" alt="" loading="lazy"></span>
             <span class="status ${st.cls}">${st.label}</span>
             <span class="game__info">
               <span class="game__studio">${esc(g.studio)}</span>
@@ -911,7 +914,7 @@
       const prof = Games.profiles[id];
       const preset = prof ? prof.preset : 'esports';
 
-      $('#drawerBanner').innerHTML = g.art('d' + (++Games.uid));
+      $('#drawerBanner').innerHTML = `<img src="assets/${g.id}.png" alt="">`;
       $('#drawerTitle').textContent = g.name;
       const s = $('#drawerStatus');
       s.className = `status ${st.cls}`;
@@ -923,6 +926,7 @@
       $('#backupBtn').disabled = missing;
 
       $$('input[name="preset"]').forEach((r) => { r.checked = r.value === preset; });
+      this.renderNpi();
       const o = prof && prof.options ? prof.options : PRESETS[preset].opts;
       $$('[data-opt]').forEach((t) => { t.checked = !!o[t.dataset.opt]; });
       this.renderChanges();
@@ -949,6 +953,14 @@
       const o = PRESETS[p].opts;
       $$('[data-opt]').forEach((t) => { t.checked = !!o[t.dataset.opt]; });
       this.renderChanges();
+      this.renderNpi();
+    },
+
+    renderNpi() {
+      const preset = this.preset();
+      const enabled = this.game?.id === 'fortnite' && (preset === 'potato' || preset === 'default');
+      $('#npiSection').hidden = !enabled;
+      if (enabled) $('#npiTitle').textContent = `Импортировать Fortnite ${preset === 'potato' ? 'potato' : 'Default'}.nip в NVIDIA Profile Inspector`;
     },
 
     renderChanges() {
@@ -972,10 +984,15 @@
         optRes = await Bridge.call('apply_game_options', g.id, options);
         if (optRes.unsupported) optRes = { ok: true };
       }
+      let npiRes = { ok: true };
+      if (res.ok !== false && g.id === 'fortnite' && (preset === 'potato' || preset === 'default') && $('#npiImport').checked) {
+        npiRes = await Bridge.call('apply_nvidia_profile', preset);
+      }
       setLoading(btn, false);
 
       if (res.ok === false) { toast(errText(res, `Не удалось применить конфиг к ${g.name}`), 'err'); return; }
       if (optRes.ok === false) toast(errText(optRes, 'Тонкие настройки не применились'), 'err');
+      if (npiRes.ok === false) toast(`Конфиг сохранён, но профиль NVIDIA не импортирован: ${errText(npiRes, 'Ошибка')}`, 'err', 6000);
 
       Games.profiles[g.id] = { preset, options, at: Date.now() };
       store.set('games.profiles', Games.profiles);
@@ -1072,7 +1089,7 @@
         return;
       }
       this.renderStatus();
-      if (fromPreset) toast(this.auto ? `Насыщенность ${v}% включится при запуске игры` : `Насыщенность ${v}% применена`, 'ok', 2400);
+      if (fromPreset) toast(this.auto ? `Насыщенность ${v}% включится в активной игре` : `Насыщенность ${v}% применена`, 'ok', 2400);
     },
 
     async setAuto(on) {
@@ -1098,7 +1115,7 @@
           if (r.ok !== false) { this.applied = 50; store.set('vib.applied', 50); }
         }
         this.renderStatus();
-        toast(`Насыщенность ${this.level}% будет включаться при запуске игры`, 'ok', 2600);
+        toast(`Насыщенность ${this.level}% будет включаться в активной игре`, 'ok', 2600);
       }
     },
 
@@ -1106,7 +1123,7 @@
       const st = $('#vibStatus');
       st.classList.remove('is-pending', 'is-error');
       $('#vibStatusText').innerHTML = this.auto
-        ? `Включится при запуске игры: <b class="mono">${this.level}%</b>`
+        ? `Включится в активной игре: <b class="mono">${this.level}%</b>`
         : `Сейчас на мониторе: <b class="mono">${this.applied}%</b>`;
     },
 
@@ -1143,6 +1160,44 @@
         set(this.split + d);
         store.set('vib.split', this.split);
       });
+    },
+  };
+
+  const Contrast = {
+    level: 100,
+    init() {
+      const slider = $('#contrastSlider');
+      slider.addEventListener('input', () => {
+        $('#contrastValue').textContent = `${slider.value}%`;
+        $('#compare').style.setProperty('--contrast-factor', String(Number(slider.value) / 100));
+      });
+      slider.addEventListener('change', () => this.save(Number(slider.value)));
+    },
+    async load() {
+      const res = await Bridge.call('get_game_contrast');
+      if (res.ok === false) return;
+      this.level = res.level ?? 100;
+      $('#contrastSlider').value = this.level;
+      $('#contrastValue').textContent = `${this.level}%`;
+      $('#compare').style.setProperty('--contrast-factor', String(this.level / 100));
+      $('#contrastSlider').disabled = res.supported === false;
+      $('#contrastStatus').textContent = res.supported === false
+        ? 'Драйвер не поддерживает регулировку контраста.'
+        : (this.level === 100 ? '100% — без изменений. При переключении на другое окно исходный контраст вернётся.'
+          : `Контраст ${this.level}% включится только когда окно игры активно.`);
+    },
+    async save(level) {
+      const res = await Bridge.call('set_game_contrast', level);
+      if (res.ok === false) {
+        $('#contrastSlider').value = this.level;
+        $('#contrastValue').textContent = `${this.level}%`;
+        $('#compare').style.setProperty('--contrast-factor', String(this.level / 100));
+        toast(errText(res, 'Не удалось изменить контраст'), 'err');
+        return;
+      }
+      this.level = level;
+      $('#contrastStatus').textContent = level === 100 ? 'Контраст выключен.' : `Контраст ${level}% включится только когда окно игры активно.`;
+      toast(level === 100 ? 'Контраст выключен' : `Контраст ${level}% сохранён для игр`, 'ok');
     },
   };
 
@@ -1429,11 +1484,13 @@
     OverlaySettings.init();
     Drawer.init();
     Vib.init();
+    Contrast.init();
     Res.init();
 
     const live = await waitForBridge();
     setLive(live);
     await OverlaySettings.load();
+    await Contrast.load();
     if (!live) {
       // в демо-режиме сразу заполняем графики историей, чтобы превью не было пустым
       for (let i = 0; i < FPS_LEN; i++) {
@@ -1449,6 +1506,7 @@
       window.addEventListener('pywebviewready', () => {
         setLive(true);
         OverlaySettings.load();
+        Contrast.load();
         restoreBackendState();
         Dash.hist = { cpu: [], gpu: [], ram: [], fps: [] };
         Res.nativeKnown = false;

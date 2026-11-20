@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Velox — оптимизатор игр</title>
+  <link rel="icon" href="assets/velox-mark.svg" type="image/svg+xml">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -38,10 +39,7 @@
   <!-- ============ Заголовок окна ============ -->
   <header class="titlebar">
     <div class="titlebar__drag pywebview-drag-region">
-      <svg class="logo" viewBox="0 0 24 24" aria-hidden="true">
-        <path d="M4 6l7 6-7 6" fill="none" stroke="url(#logoGrad)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M12 6l7 6-7 6" fill="none" stroke="url(#logoGrad)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>
-      </svg>
+      <img class="logo" src="assets/velox-mark.svg" alt="">
       <span class="titlebar__name">Velox</span>
       <span class="titlebar__sub">Game Optimizer</span>
     </div>
@@ -93,6 +91,7 @@
       </div>
 
       <div class="sidebar__foot">
+        <div class="sidebar__brand"><img src="assets/velox-mark.svg" alt=""><span>VELOX</span></div>
         <div class="conn" id="connStatus" title="Состояние подключения к Python-бэкенду">
           <span class="conn__dot" aria-hidden="true"></span>
           <div class="conn__text">
@@ -335,12 +334,17 @@
               <span class="check__box" aria-hidden="true">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
               </span>
-              <span>Применять автоматически только при запуске игры</span>
+              <span>Применять только когда окно игры активно</span>
             </label>
 
             <div class="vib__status" id="vibStatus" aria-live="polite">
               <span class="vib__status-dot" aria-hidden="true"></span>
               <span id="vibStatusText">Сейчас на мониторе: 50%</span>
+            </div>
+            <div class="game-contrast">
+              <label for="contrastSlider">Контраст только в активной игре: <b id="contrastValue">100%</b></label>
+              <input type="range" id="contrastSlider" min="100" max="130" step="1" value="100">
+              <small id="contrastStatus">100% — без изменений. При переключении на другое окно исходный контраст вернётся.</small>
             </div>
           </div>
         </div>
@@ -454,6 +458,11 @@
           <span class="preset__desc">Вернуть файл настроек в состояние до первого применения пресета.</span>
         </span>
       </label>
+    </div>
+
+    <div class="npi-option" id="npiSection" hidden>
+      <label class="check"><input type="checkbox" id="npiImport" checked><span class="check__box" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span id="npiTitle">Импортировать Fortnite potato.nip в NVIDIA Profile Inspector</span></label>
+      <p>Velox сохранит экспорт профилей драйвера перед импортом. Нужны NVIDIA и права администратора.</p>
     </div>
 
     <h4 class="drawer__section">Что изменится</h4>

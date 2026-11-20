@@ -46,6 +46,8 @@ from pathlib import Path
 import psutil
 import webview
 from overlay import FpsOverlay
+from nvidia_profile import import_fortnite_profile
+from display_effects import GameContrast
 
 IS_WIN = sys.platform == "win32"
 
@@ -71,12 +73,13 @@ BACKUPS = DATA / "backups"
 ORIGINAL_MODE = DATA / "original_display_mode.json"
 OVERLAY_SETTINGS_FILE = DATA / "overlay_settings.json"
 OVERLAY_IMAGE_FILE = DATA / "overlay_avatar"
+CONTRAST_SETTINGS_FILE = DATA / "game_contrast.json"
 LOCALAPPDATA = Path(os.environ.get("LOCALAPPDATA", str(Path.home() / "AppData" / "Local")))
 
 OVERLAY_KEYS = ("W", "A", "S", "D", "Q", "E", "R", "F", "1", "2", "3", "4",
                 "Shift", "Ctrl", "Space", "Tab", "Esc", "Up", "Down", "Left", "Right")
 OVERLAY_DEFAULTS = {"position": "top_left", "offset_x": 16, "offset_y": 16,
-                    "dpi": 800, "nickname": "Player", "keys": ["W", "A", "S", "D", "Shift", "Space"],
+                    "dpi": 800, "nickname": "Player", "keys": ["Q", "W", "E", "Shift", "A", "S", "D", "Ctrl", "Space"],
                     "image_path": None}
 
 
@@ -565,6 +568,13 @@ class Api:
         self._vib_auto = False
         self._vib_level = 50
         self._vib_active = False
+        self._stop_event = threading.Event()
+        self._contrast = GameContrast()
+        try:
+            saved = json.loads(CONTRAST_SETTINGS_FILE.read_text(encoding="utf-8"))
+            self._contrast.set_level(int(saved.get("level", 100)))
+        except (OSError, ValueError, TypeError):
+            pass
         self._game_cache = (0.0, None)
         self._cpu_name = self._detect_cpu_name()
         self._gpu_name_fallback = self._detect_gpu_name()
@@ -671,6 +681,24 @@ class Api:
         self._game_cache = (time.time(), found)
         return found
 
+    @staticmethod
+    def _foreground_game() -> str | None:
+        if not IS_WIN:
+            return None
+        try:
+            user32 = ctypes.WinDLL("user32", use_last_error=True)
+            user32.GetForegroundWindow.restype = wintypes.HWND
+            user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
+            user32.GetWindowThreadProcessId.restype = wintypes.DWORD
+            handle = user32.GetForegroundWindow()
+            pid = wintypes.DWORD()
+            if not handle or not user32.GetWindowThreadProcessId(handle, ctypes.byref(pid)):
+                return None
+            name = psutil.Process(pid.value).name().lower()
+            return next((gid for gid, info in GAME_INFO.items() if name in info["exe"]), None)
+        except (OSError, psutil.Error):
+            return None
+
     def _read_fps(self, game_id: str):
         """
         Точка подключения счётчика FPS. Windows не отдаёт FPS чужой игры напрямую —
@@ -680,23 +708,35 @@ class Api:
         return None
 
     def _vibrance_watcher(self):
-        """Режим «только при запуске игры»: включает насыщенность в игре и возвращает 50% после выхода."""
-        while True:
-            time.sleep(2)
-            if not self._vib_auto or not self._nv.ok:
-                continue
-            playing = self._running_game() is not None
+        """Apply display effects while a supported game owns the foreground window."""
+        while not self._stop_event.wait(.5):
+            playing = self._foreground_game() is not None
             try:
-                if playing and not self._vib_active:
-                    self._nv.set_percent(self._vib_level)
-                    self._vib_active = True
-                elif not playing and self._vib_active:
-                    self._nv.set_percent(50)
-                    self._vib_active = False
+                self._contrast.update(playing)
             except Exception:
                 pass
+            if self._vib_auto and self._nv.ok:
+                try:
+                    if playing and not self._vib_active:
+                        self._nv.set_percent(self._vib_level)
+                        self._vib_active = True
+                    elif not playing and self._vib_active:
+                        self._nv.set_percent(50)
+                        self._vib_active = False
+                except Exception:
+                    pass
 
     def _on_closed(self):
+        self._stop_event.set()
+        try:
+            self._contrast.restore()
+        except Exception:
+            pass
+        if self._vib_auto and self._vib_active:
+            try:
+                self._nv.set_percent(50)
+            except Exception:
+                pass
         if self._overlay:
             try:
                 self._overlay.stop()
@@ -905,6 +945,41 @@ class Api:
             return {"ok": True}
         except Exception as e:
             return {"ok": False, "error": f"Оверлей не запустился: {e}"}
+
+    def apply_nvidia_profile(self, preset_name):
+        try:
+            if preset_name not in ("potato", "default"):
+                raise ValueError("Доступны профили NVIDIA Potato и Default")
+            if not self._nv.ok:
+                raise RuntimeError(self._nv.error)
+            if self._running_game() and self._running_game()[0] == "fortnite":
+                raise RuntimeError("Закройте Fortnite перед импортом профиля NVIDIA")
+            if not ctypes.windll.shell32.IsUserAnAdmin():
+                raise PermissionError("Запустите Velox от имени администратора для изменения профиля драйвера")
+            return import_fortnite_profile(preset_name, BASE, DATA)
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def get_game_contrast(self):
+        return {"ok": True, "level": self._contrast.level, "active": self._contrast.active,
+                "supported": self._contrast.supported()}
+
+    def set_game_contrast(self, level):
+        try:
+            new_level = int(level)
+            if new_level > 100 and not self._contrast.supported():
+                raise RuntimeError("Драйвер не поддерживает регулировку контраста через гамма-кривую")
+            previous = self._contrast.level
+            self._contrast.set_level(new_level)
+            try:
+                self._contrast.update(self._foreground_game() is not None)
+                _atomic_write(CONTRAST_SETTINGS_FILE, json.dumps({"level": new_level}), "utf-8")
+            except Exception:
+                self._contrast.set_level(previous)
+                raise
+            return {"ok": True, "message": "Контраст будет действовать только при активном окне игры"}
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
 
     def get_overlay_settings(self):
         return {"ok": True, **self._overlay_settings}

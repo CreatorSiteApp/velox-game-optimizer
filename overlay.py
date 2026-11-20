@@ -19,6 +19,9 @@ KEY_CODES = {**{ord(ch): ch for ch in "WASDQERF1234"},
              0x20: "Space", 0x09: "Tab", 0x1B: "Esc",
              0x26: "Up", 0x28: "Down", 0x25: "Left", 0x27: "Right"}
 WM_KEYDOWN, WM_KEYUP, WM_SYSKEYDOWN, WM_SYSKEYUP = 0x100, 0x101, 0x104, 0x105
+KEY_LAYOUT = {"Q": (0, 0, 1), "W": (0, 1, 1), "E": (0, 2, 1),
+              "Shift": (1, 0, 1), "A": (1, 1, 1), "S": (1, 2, 1), "D": (1, 3, 1),
+              "Ctrl": (2, 0, 1), "Space": (2, 1, 3)}
 
 
 class KBDLLHOOKSTRUCT(ctypes.Structure):
@@ -153,10 +156,15 @@ class _OverlayWorker:
                 for child in keys_row.winfo_children():
                     child.destroy()
                 key_labels.clear()
+                extras = 0
                 for key in self._settings["keys"]:
-                    label = tk.Label(keys_row, text=key, bg="#263442", fg="#b7c7d2",
-                                     font=("Consolas", 9, "bold"), padx=5, pady=3)
-                    label.pack(side="left", padx=(0, 3))
+                    row, column, span = KEY_LAYOUT.get(key, (3 + extras // 4, extras % 4, 1))
+                    if key not in KEY_LAYOUT:
+                        extras += 1
+                    label = tk.Label(keys_row, text=key.upper(), bg="#263442", fg="#e8f1f4",
+                                     font=("Consolas", 9, "bold"), padx=5, pady=4,
+                                     relief="solid", borderwidth=1, width=14 if key == "Space" else (5 if key in ("Shift", "Ctrl") else 3))
+                    label.grid(row=row, column=column, columnspan=span, sticky="nsew", padx=2, pady=2)
                     key_labels[key] = label
                 load_image()
                 position()
@@ -217,8 +225,8 @@ class _OverlayWorker:
                     pass
                 for key, label in key_labels.items():
                     active = key in pressed
-                    label.configure(bg="#1ed8a0" if active else "#263442",
-                                    fg="#061c1a" if active else "#b7c7d2")
+                    label.configure(bg="#d9df54" if active else "#263442",
+                                    fg="#1b200d" if active else "#e8f1f4")
                 now = time.monotonic()
                 if len(frames) > 1 and now >= next_frame:
                     frame_index = (frame_index + 1) % len(frames)
