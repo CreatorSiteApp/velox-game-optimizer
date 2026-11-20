@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Velox — оптимизатор игр</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- Общие градиенты для SVG-сцен (не display:none, иначе градиенты не работают) -->
+<svg class="svg-defs" aria-hidden="true" focusable="false">
+  <defs>
+    <linearGradient id="logoGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#2F80FF"/><stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="vSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5A8FCC"/><stop offset="1" stop-color="#A8C8DF"/>
+    </linearGradient>
+    <radialGradient id="vSunGlow" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#F6D96B" stop-opacity=".75"/><stop offset="1" stop-color="#F6D96B" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="vWater" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5B9CC0"/><stop offset="1" stop-color="#3E7FA3"/>
+    </linearGradient>
+    <linearGradient id="rSky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2B3A57"/><stop offset="1" stop-color="#151B29"/>
+    </linearGradient>
+  </defs>
+</svg>
+
+<div class="ambient" aria-hidden="true"></div>
+
+<div class="app">
+  <!-- ============ Заголовок окна ============ -->
+  <header class="titlebar">
+    <div class="titlebar__drag pywebview-drag-region">
+      <svg class="logo" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M4 6l7 6-7 6" fill="none" stroke="url(#logoGrad)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 6l7 6-7 6" fill="none" stroke="url(#logoGrad)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity=".5"/>
+      </svg>
+      <span class="titlebar__name">Velox</span>
+      <span class="titlebar__sub">Game Optimizer</span>
+    </div>
+    <div class="titlebar__controls">
+      <button class="wc" id="btnMinimize" type="button" aria-label="Свернуть" title="Свернуть">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2 6h8" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+      <button class="wc wc--close" id="btnClose" type="button" aria-label="Закрыть" title="Закрыть">
+        <svg viewBox="0 0 12 12" aria-hidden="true"><path d="M2.5 2.5l7 7M9.5 2.5l-7 7" stroke="currentColor" stroke-width="1.2"/></svg>
+      </button>
+    </div>
+  </header>
+
+  <div class="shell">
+    <!-- ============ Боковое меню ============ -->
+    <nav class="sidebar" aria-label="Разделы">
+      <div class="nav" role="tablist" aria-orientation="vertical">
+        <span class="nav__indicator" aria-hidden="true"></span>
+
+        <button class="nav__item" type="button" role="tab" data-page="dashboard" aria-controls="page-dashboard" title="Ctrl+1">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M3.5 15a8.5 8.5 0 1 1 17 0"/><path d="M12 15l4.2-4.2"/><circle cx="12" cy="15" r="1.4"/><path d="M4 19.5h16"/>
+          </svg>
+          <span>Дашборд</span>
+        </button>
+
+        <button class="nav__item" type="button" role="tab" data-page="games" aria-controls="page-games" title="Ctrl+2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M7 7.5h10a5 5 0 0 1 5 5v.5a3.5 3.5 0 0 1-6.3 2.1L14.5 14h-5l-1.2 1.1A3.5 3.5 0 0 1 2 13v-.5a5 5 0 0 1 5-5z"/>
+            <path d="M7.5 10v3.5M5.75 11.75h3.5"/><path d="M15.5 11h.01M17.5 13h.01"/>
+          </svg>
+          <span>Игры и графика</span>
+        </button>
+
+        <button class="nav__item" type="button" role="tab" data-page="vibrance" aria-controls="page-vibrance" title="Ctrl+3">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="M12 3.2s6.3 6.7 6.3 11.2a6.3 6.3 0 0 1-12.6 0C5.7 9.9 12 3.2 12 3.2z"/><path d="M12 20.7a6.3 6.3 0 0 0 6.3-6.3"/>
+          </svg>
+          <span>Насыщенность</span>
+        </button>
+
+        <button class="nav__item" type="button" role="tab" data-page="resolution" aria-controls="page-resolution" title="Ctrl+4">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="2.5" y="4.5" width="19" height="13" rx="2"/><path d="M8 21h8M12 17.5V21"/>
+            <path d="M6.5 11h11M6.5 11l2-2M6.5 11l2 2M17.5 11l-2-2M17.5 11l-2 2"/>
+          </svg>
+          <span>Растяг экрана</span>
+        </button>
+      </div>
+
+      <div class="sidebar__foot">
+        <div class="conn" id="connStatus" title="Состояние подключения к Python-бэкенду">
+          <span class="conn__dot" aria-hidden="true"></span>
+          <div class="conn__text">
+            <b id="connTitle">Подключение…</b>
+            <small id="connSub">Ищу бэкенд pywebview</small>
+          </div>
+        </div>
+      </div>
+    </nav>
+
+    <!-- ============ Рабочая область ============ -->
+    <main class="main" id="main">
+
+      <!-- ===== Дашборд ===== -->
+      <section class="page" id="page-dashboard" role="tabpanel">
+        <header class="page__head">
+          <div>
+            <h1>Система</h1>
+            <p>Нагрузка и температура железа, FPS в игре и быстрый буст.</p>
+          </div>
+          <div class="live-pill" id="livePill">
+            <span class="live-pill__dot" aria-hidden="true"></span>
+            <span id="liveText">Обновляется каждую секунду</span>
+          </div>
+        </header>
+
+        <div class="hw-grid">
+          <!-- CPU -->
+          <article class="panel hw hw--cpu">
+            <div class="hw__top">
+              <span class="hw__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="6.5" y="6.5" width="11" height="11" rx="2"/><rect x="9.5" y="9.5" width="5" height="5" rx=".8"/><path d="M9.5 3v3.5M14.5 3v3.5M9.5 17.5V21M14.5 17.5V21M3 9.5h3.5M3 14.5h3.5M17.5 9.5H21M17.5 14.5H21"/></svg>
+              </span>
+              <div class="hw__titles">
+                <h3>Процессор</h3>
+                <p class="hw__name" id="cpuName">—</p>
+              </div>
+            </div>
+            <div class="hw__metric">
+              <span class="hw__value mono"><b id="cpuLoad">—</b><small>%</small></span>
+              <span class="hw__label">загрузка</span>
+              <div class="temp" data-temp="cpu" title="Температура"><span class="mono">—</span><small>°C</small></div>
+            </div>
+            <div class="segbar" id="cpuBar" role="presentation"></div>
+            <canvas class="spark" id="cpuSpark" aria-hidden="true"></canvas>
+            <dl class="hw__meta">
+              <div><dt>Частота</dt><dd class="mono" id="cpuClock">—</dd></div>
+              <div><dt>Ядра / потоки</dt><dd class="mono" id="cpuCores">—</dd></div>
+            </dl>
+          </article>
+
+          <!-- GPU -->
+          <article class="panel hw hw--gpu">
+            <div class="hw__top">
+              <span class="hw__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="6" width="19" height="11" rx="2"/><circle cx="9" cy="11.5" r="3"/><path d="M15 9.5h3.5M15 13.5h3.5M5.5 17v2.5M9 17v2.5"/></svg>
+              </span>
+              <div class="hw__titles">
+                <h3>Видеокарта</h3>
+                <p class="hw__name" id="gpuName">—</p>
+              </div>
+            </div>
+            <div class="hw__metric">
+              <span class="hw__value mono"><b id="gpuLoad">—</b><small>%</small></span>
+              <span class="hw__label">загрузка</span>
+              <div class="temp" data-temp="gpu" title="Температура"><span class="mono">—</span><small>°C</small></div>
+            </div>
+            <div class="segbar" id="gpuBar" role="presentation"></div>
+            <canvas class="spark" id="gpuSpark" aria-hidden="true"></canvas>
+            <dl class="hw__meta">
+              <div><dt>Частота</dt><dd class="mono" id="gpuClock">—</dd></div>
+              <div><dt>Видеопамять</dt><dd class="mono" id="gpuVram">—</dd></div>
+            </dl>
+          </article>
+
+          <!-- RAM -->
+          <article class="panel hw hw--ram">
+            <div class="hw__top">
+              <span class="hw__icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7.5h18v8.5H3z"/><path d="M6.5 10.5v2.5M10 10.5v2.5M13.5 10.5v2.5M17 10.5v2.5M6 16v2.5M18 16v2.5"/></svg>
+              </span>
+              <div class="hw__titles">
+                <h3>Оперативная память</h3>
+                <p class="hw__name" id="ramName">ОЗУ</p>
+              </div>
+            </div>
+            <div class="hw__metric">
+              <span class="hw__value mono"><b id="ramUsed">—</b><small id="ramTotal">/ — ГБ</small></span>
+              <span class="hw__label">занято</span>
+            </div>
+            <div class="segbar" id="ramBar" role="presentation"></div>
+            <canvas class="spark" id="ramSpark" aria-hidden="true"></canvas>
+            <dl class="hw__meta">
+              <div><dt>Свободно</dt><dd class="mono" id="ramFree">—</dd></div>
+              <div><dt>Загрузка</dt><dd class="mono" id="ramPct">—</dd></div>
+            </dl>
+          </article>
+        </div>
+
+        <div class="dash-row">
+          <!-- FPS + оверлей -->
+          <article class="panel fps">
+            <div class="panel__head">
+              <h3>Игровой оверлей и FPS</h3>
+              <span class="fps__game" id="fpsGame"><span class="fps__game-dot" aria-hidden="true"></span><span id="fpsGameName">Игра не запущена</span></span>
+            </div>
+            <div class="fps__body">
+              <div class="fps__numbers">
+                <div class="fps__current">
+                  <span class="mono" id="fpsCurrent">—</span>
+                  <small>FPS сейчас</small>
+                </div>
+                <div class="fps__stats">
+                  <div><span class="mono fps__avg" id="fpsAvg">—</span><small>Средний</small></div>
+                  <div><span class="mono" id="fpsLow">—</span><small>1% low</small></div>
+                  <div><span class="mono" id="fpsFrametime">—</span><small>Кадр, мс</small></div>
+                </div>
+              </div>
+              <div class="fps__graph-wrap">
+                <canvas class="fps__graph" id="fpsGraph" aria-label="График FPS за последние 90 секунд" role="img"></canvas>
+              </div>
+            </div>
+            <div class="fps__foot">
+              <div class="overlay-mini" id="overlayMini" aria-hidden="true">
+                <span class="overlay-mini__hud mono" id="overlayHud">— FPS</span>
+              </div>
+              <div class="fps__toggle-text">
+                <b id="overlayLabel">Компактный оверлей</b>
+                <p>FPS, загрузка CPU и GPU в углу экрана поверх игры.</p>
+              </div>
+              <label class="switch" title="Оверлей поверх игр">
+                <input type="checkbox" id="overlayToggle" aria-labelledby="overlayLabel">
+                <span class="switch__track"><span class="switch__thumb"></span></span>
+              </label>
+            </div>
+            <details class="overlay-settings" id="overlaySettings">
+              <summary>Настроить оверлей</summary>
+              <div class="overlay-settings__grid">
+                <label>Положение<select id="overlayPosition"><option value="top_left">Слева сверху</option><option value="top_right">Справа сверху</option></select></label>
+                <label>DPI мыши<input id="overlayDpi" type="number" min="100" max="32000" value="800"></label>
+                <label>Отступ по X, пикс.<input id="overlayOffsetX" type="number" min="0" max="500" value="16"></label>
+                <label>Отступ по Y, пикс.<input id="overlayOffsetY" type="number" min="0" max="500" value="16"></label>
+                <label class="overlay-settings__wide">Ник<input id="overlayNickname" type="text" maxlength="24" value="Player"></label>
+              </div>
+              <div class="overlay-settings__image">
+                <button class="btn btn--ghost" id="overlayChooseImage" type="button">Выбрать GIF или фото</button>
+                <button class="btn btn--ghost" id="overlayClearImage" type="button">Убрать</button>
+                <span id="overlayImageName">Изображение не выбрано</span>
+              </div>
+              <p class="overlay-settings__hint">Какие клавиши показывать (до 12):</p>
+              <div class="overlay-settings__keys" id="overlayKeys"></div>
+              <button class="btn btn--primary" id="overlaySave" type="button">Сохранить настройки</button>
+            </details>
+          </article>
+
+          <!-- Turbo Boost -->
+          <article class="panel turbo">
+            <div class="panel__head">
+              <h3>Turbo Boost</h3>
+            </div>
+            <p class="turbo__hint">Очистка ОЗУ и высокий приоритет для игры.</p>
+            <button class="turbo__btn" id="turboBtn" type="button" aria-describedby="turboResult">
+              <span class="turbo__ring" aria-hidden="true"></span>
+              <span class="turbo__core">
+                <svg class="turbo__icon turbo__icon--bolt" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M13.2 2.5L4.8 13.4h6l-1 8.1 8.4-10.9h-6z"/></svg>
+                <svg class="turbo__icon turbo__icon--done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+                <span class="turbo__label" id="turboLabel">Ускорить</span>
+              </span>
+            </button>
+            <ol class="turbo__steps" id="turboSteps">
+              <li data-step="ram"><span class="step-dot" aria-hidden="true"></span>Очистка памяти</li>
+              <li data-step="prio"><span class="step-dot" aria-hidden="true"></span>Приоритет игры</li>
+            </ol>
+            <p class="turbo__result" id="turboResult" aria-live="polite">Ещё не запускался в этой сессии</p>
+          </article>
+        </div>
+      </section>
+
+      <!-- ===== Игры и графика ===== -->
+      <section class="page" id="page-games" role="tabpanel">
+        <header class="page__head">
+          <div>
+            <h1>Игры и графика</h1>
+            <p>Готовые профили графики. Выберите игру, чтобы настроить пресет и применить конфиг.</p>
+          </div>
+          <button class="btn btn--ghost" id="rescanBtn" type="button">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-4.2-4.2"/></svg>
+            Найти игры
+          </button>
+        </header>
+        <div class="games" id="gamesGrid"></div>
+      </section>
+
+      <!-- ===== Насыщенность ===== -->
+      <section class="page" id="page-vibrance" role="tabpanel">
+        <header class="page__head">
+          <div>
+            <h1>Насыщенность</h1>
+            <p>Digital Vibrance делает цвета сочнее: противника легче отличить от травы и стен.</p>
+          </div>
+        </header>
+
+        <div class="vib">
+          <div class="panel vib__preview">
+            <div class="compare" id="compare">
+              <div class="compare__layer compare__base" id="compareBase"></div>
+              <div class="compare__layer compare__after" id="compareAfter"></div>
+              <div class="compare__handle" id="compareHandle" role="slider" tabindex="0"
+                   aria-label="Граница сравнения" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
+                <span>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 7l-5 5 5 5M15 7l5 5-5 5"/></svg>
+                </span>
+              </div>
+              <span class="compare__tag compare__tag--l">Стандарт, 50%</span>
+              <span class="compare__tag compare__tag--r" id="tagAfter">Ваша настройка, 50%</span>
+            </div>
+          </div>
+
+          <div class="panel vib__controls">
+            <div>
+              <div class="vib__value"><span class="mono" id="vibValue">50</span><small class="mono">%</small></div>
+              <label class="vib__caption" for="vibSlider">Насыщенность (Digital Vibrance)</label>
+            </div>
+
+            <div class="range-wrap">
+              <input type="range" class="range range--vib" id="vibSlider" min="50" max="100" step="1" value="50">
+              <div class="range__scale mono" aria-hidden="true">
+                <span>50</span><span>60</span><span>70</span><span>80</span><span>90</span><span>100</span>
+              </div>
+            </div>
+
+            <div class="chips" id="vibChips" role="group" aria-label="Пресеты насыщенности">
+              <button class="chip" type="button" data-level="50"><b>Стандарт</b><small>50%</small></button>
+              <button class="chip" type="button" data-level="80"><b>Сочный CS2</b><small>80%</small></button>
+              <button class="chip" type="button" data-level="100"><b>Максимум Fortnite</b><small>100%</small></button>
+            </div>
+
+            <label class="check">
+              <input type="checkbox" id="vibAuto">
+              <span class="check__box" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+              </span>
+              <span>Применять автоматически только при запуске игры</span>
+            </label>
+
+            <div class="vib__status" id="vibStatus" aria-live="polite">
+              <span class="vib__status-dot" aria-hidden="true"></span>
+              <span id="vibStatusText">Сейчас на мониторе: 50%</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Растяг экрана ===== -->
+      <section class="page" id="page-resolution" role="tabpanel">
+        <header class="page__head">
+          <div>
+            <h1>Растяг экрана</h1>
+            <p>Растянутое 4:3 делает модели шире, а в них проще попасть. Нужное разрешение должно поддерживаться драйвером.</p>
+          </div>
+        </header>
+
+        <div class="res">
+          <div class="panel res__left">
+            <div class="panel__head">
+              <h3>Разрешение</h3>
+              <span class="res__native mono" id="resNative">Родное: —</span>
+            </div>
+            <div class="res-grid" id="resGrid" role="radiogroup" aria-label="Готовые разрешения"></div>
+
+            <div class="custom-res">
+              <label class="field">
+                <span>Ширина</span>
+                <input type="number" id="resW" min="640" max="7680" step="1" inputmode="numeric">
+              </label>
+              <span class="custom-res__x mono" aria-hidden="true">×</span>
+              <label class="field">
+                <span>Высота</span>
+                <input type="number" id="resH" min="480" max="4320" step="1" inputmode="numeric">
+              </label>
+              <label class="field">
+                <span>Частота, Гц</span>
+                <input type="number" id="resHz" min="30" max="540" step="1" inputmode="numeric">
+              </label>
+            </div>
+            <p class="field-error" id="resError" role="alert" hidden></p>
+          </div>
+
+          <div class="panel res__preview">
+            <div class="monitor">
+              <div class="monitor__screen" id="monScreen">
+                <div class="game-frame" id="gameFrame"></div>
+              </div>
+              <div class="monitor__stand" aria-hidden="true"></div>
+            </div>
+            <p class="res__effect" id="resEffect">—</p>
+
+            <div class="toggle-row">
+              <div class="toggle-row__text">
+                <b id="stretchLabel">На весь экран без чёрных полос</b>
+                <p>Масштабирование «Растянуть» на стороне видеокарты.</p>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="stretchToggle" aria-labelledby="stretchLabel">
+                <span class="switch__track"><span class="switch__thumb"></span></span>
+              </label>
+            </div>
+
+            <div class="res__actions">
+              <button class="btn btn--primary" id="applyResBtn" type="button">Применить разрешение</button>
+              <button class="btn btn--ghost" id="resetResBtn" type="button">Вернуть родное разрешение</button>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<!-- ============ Панель настроек игры ============ -->
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" role="dialog" aria-modal="true" aria-labelledby="drawerTitle" aria-hidden="true">
+  <div class="drawer__banner" id="drawerBanner" aria-hidden="true"></div>
+  <button class="drawer__close" id="drawerClose" type="button" aria-label="Закрыть настройки игры">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+  </button>
+
+  <div class="drawer__body">
+    <div class="drawer__title">
+      <h2 id="drawerTitle">—</h2>
+      <span class="status" id="drawerStatus">—</span>
+    </div>
+    <p class="drawer__path mono" id="drawerPath"></p>
+    <p class="notice" id="drawerNotice" hidden>Игра не найдена на этом ПК. Установите её и нажмите «Найти игры».</p>
+
+    <h4 class="drawer__section">Пресет графики</h4>
+    <div class="presets" role="radiogroup" aria-label="Пресет графики">
+      <label class="preset">
+        <input type="radio" name="preset" value="esports">
+        <span class="preset__card">
+          <span class="preset__radio" aria-hidden="true"></span>
+          <span class="preset__name"><b>Киберспорт</b><small>Баланс</small></span>
+          <span class="preset__desc">Чёткая картинка и ровный FPS. Тени выключены, текстуры средние.</span>
+        </span>
+      </label>
+      <label class="preset">
+        <input type="radio" name="preset" value="potato">
+        <span class="preset__card">
+          <span class="preset__radio" aria-hidden="true"></span>
+          <span class="preset__name"><b>Графика картошки</b><small>Potato Mode</small></span>
+          <span class="preset__desc">Максимум FPS ценой картинки: урезанные текстуры и прорисовка, как в Performance Mode и профилях NVIDIA Profile Inspector.</span>
+        </span>
+      </label>
+      <label class="preset">
+        <input type="radio" name="preset" value="default">
+        <span class="preset__card">
+          <span class="preset__radio" aria-hidden="true"></span>
+          <span class="preset__name"><b>Восстановить настройки</b><small>Из резервной копии .bak</small></span>
+          <span class="preset__desc">Вернуть файл настроек в состояние до первого применения пресета.</span>
+        </span>
+      </label>
+    </div>
+
+    <h4 class="drawer__section">Что изменится</h4>
+    <dl class="changes" id="presetChanges"></dl>
+
+    <h4 class="drawer__section">Тонкая настройка</h4>
+    <div class="toggles">
+      <div class="toggle-row">
+        <div class="toggle-row__text">
+          <b id="optShadowsLabel">Отключить тени</b>
+          <p>Тени — одна из самых тяжёлых настроек для видеокарты.</p>
+        </div>
+        <label class="switch"><input type="checkbox" data-opt="shadows" aria-labelledby="optShadowsLabel"><span class="switch__track"><span class="switch__thumb"></span></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-row__text">
+          <b id="optLodLabel">Минимальный LOD</b>
+          <p>Упрощённые модели и мыльные текстуры вдали. Больше FPS, меньше деталей.</p>
+        </div>
+        <label class="switch"><input type="checkbox" data-opt="lod" aria-labelledby="optLodLabel"><span class="switch__track"><span class="switch__thumb"></span></span></label>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-row__text">
+          <b id="optLatencyLabel">Режим низкой задержки</b>
+          <p>Короче очередь кадров, мышь отзывчивее. NVIDIA Reflex или аналог в игре.</p>
+        </div>
+        <label class="switch"><input type="checkbox" data-opt="latency" aria-labelledby="optLatencyLabel"><span class="switch__track"><span class="switch__thumb"></span></span></label>
+      </div>
+    </div>
+    <p class="hint">Закройте игру перед применением, иначе при выходе она перезапишет файл настроек.</p>
+  </div>
+
+  <div class="drawer__foot">
+    <button class="btn btn--ghost" id="backupBtn" type="button">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 17v2.5A1.5 1.5 0 0 0 5.5 21h13a1.5 1.5 0 0 0 1.5-1.5V17"/></svg>
+      Сделать бэкап
+    </button>
+    <button class="btn btn--primary" id="applyPresetBtn" type="button">Применить конфиг</button>
+  </div>
+</aside>
+
+<!-- ============ Подтверждение разрешения ============ -->
+<div class="modal" id="resModal" role="alertdialog" aria-modal="true" aria-labelledby="resModalTitle" aria-describedby="resModalText" aria-hidden="true">
+  <div class="modal__card">
+    <h3 id="resModalTitle">Оставить это разрешение?</h3>
+    <p id="resModalText">Если изображение пропало или выглядит неправильно, ничего не нажимайте: родное разрешение вернётся через <b class="mono" id="resCountdown">15</b> с.</p>
+    <div class="modal__timer" aria-hidden="true"><span id="resTimerBar"></span></div>
+    <div class="modal__actions">
+      <button class="btn btn--ghost" id="resRevert" type="button">Вернуть родное</button>
+      <button class="btn btn--primary" id="resKeep" type="button">Оставить</button>
+    </div>
+  </div>
+</div>
+
+<div class="toasts" id="toasts" aria-live="polite"></div>
+
+<!-- ============ Шаблоны SVG-сцен ============ -->
+<template id="tplVibScene">
+  <svg viewBox="0 0 800 500" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <rect width="800" height="500" fill="url(#vSky)"/>
+    <circle cx="615" cy="118" r="78" fill="url(#vSunGlow)"/>
+    <circle cx="615" cy="118" r="36" fill="#EFCB5C"/>
+    <g fill="#F4F7FA" opacity=".8">
+      <ellipse cx="170" cy="96" rx="72" ry="17"/><ellipse cx="212" cy="84" rx="40" ry="19"/>
+      <ellipse cx="420" cy="70" rx="52" ry="11"/><ellipse cx="448" cy="62" rx="26" ry="12"/>
+    </g>
+    <path d="M0 268 L90 192 L170 246 L262 158 L360 240 L452 176 L540 236 L642 168 L742 230 L800 204 V330 H0Z" fill="#7F95B6"/>
+    <path d="M0 300 L120 232 L232 286 L332 222 L472 292 L592 226 L702 282 L800 252 V340 H0Z" fill="#628C98"/>
+    <path d="M0 332 C140 282 262 302 382 316 S642 282 800 306 V500 H0Z" fill="#5E9C57"/>
+    <ellipse cx="575" cy="362" rx="175" ry="30" fill="url(#vWater)"/>
+    <ellipse cx="575" cy="356" rx="118" ry="9" fill="#9CCBE0" opacity=".55"/>
+    <!-- башня -->
+    <rect x="148" y="206" width="46" height="132" fill="#C88A4C"/>
+    <path d="M139 208 L171 168 L203 208Z" fill="#B54B3E"/>
+    <rect x="161" y="232" width="20" height="28" rx="10" fill="#3D2B22"/>
+    <path d="M171 168 V136" stroke="#5A3D2B" stroke-width="3"/>
+    <path d="M171 137 L201 146 L171 155Z" fill="#D9545F"/>
+    <!-- дом -->
+    <rect x="250" y="272" width="112" height="70" fill="#E0D2B0"/>
+    <path d="M238 274 L306 228 L374 274Z" fill="#C04B3D"/>
+    <rect x="270" y="292" width="24" height="22" fill="#4F86B3"/>
+    <rect x="320" y="300" width="24" height="42" fill="#7A5338"/>
+    <!-- деревья -->
+    <rect x="78" y="300" width="9" height="40" fill="#6B4A2E"/>
+    <circle cx="82" cy="290" r="28" fill="#3F8B47"/><circle cx="66" cy="304" r="18" fill="#49974F"/>
+    <rect x="403" y="292" width="9" height="46" fill="#6B4A2E"/>
+    <circle cx="407" cy="280" r="30" fill="#3A8443"/>
+    <!-- противник в кустах -->
+    <g transform="translate(470 336)">
+      <rect x="-9" y="-6" width="18" height="34" rx="7" fill="#B8463E"/>
+      <circle cy="-15" r="9" fill="#D4A47F"/>
+      <rect x="-11" y="-22" width="22" height="7" rx="3" fill="#3C404B"/>
+    </g>
+    <g fill="#40894A">
+      <circle cx="452" cy="364" r="20"/><circle cx="478" cy="368" r="22"/><circle cx="502" cy="366" r="17"/>
+    </g>
+    <path d="M0 422 C160 396 302 412 462 402 S702 392 800 406 V500 H0Z" fill="#4D8E40"/>
+    <g>
+      <circle cx="60" cy="452" r="5" fill="#D86A8F"/><circle cx="118" cy="440" r="4" fill="#E6C24B"/>
+      <circle cx="176" cy="462" r="5" fill="#9C6CC9"/><circle cx="240" cy="446" r="4" fill="#D86A8F"/>
+      <circle cx="318" cy="470" r="5" fill="#E6C24B"/><circle cx="392" cy="448" r="4" fill="#E0703F"/>
+      <circle cx="468" cy="464" r="5" fill="#D86A8F"/><circle cx="548" cy="444" r="4" fill="#9C6CC9"/>
+      <circle cx="622" cy="466" r="5" fill="#E6C24B"/><circle cx="702" cy="448" r="4" fill="#D86A8F"/>
+      <circle cx="760" cy="472" r="5" fill="#E0703F"/>
+    </g>
+  </svg>
+</template>
+
+<template id="tplResScene">
+  <svg viewBox="0 0 400 300" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <rect width="400" height="300" fill="url(#rSky)"/>
+    <path d="M0 0 L132 108 V196 L0 300Z" fill="#323A4D"/>
+    <path d="M400 0 L268 108 V196 L400 300Z" fill="#2A3142"/>
+    <rect x="132" y="108" width="136" height="88" fill="#3B4458"/>
+    <path d="M0 300 L132 196 H268 L400 300Z" fill="#20263A"/>
+    <rect x="146" y="168" width="28" height="28" fill="#6A5236"/>
+    <path d="M146 168 L174 196 M174 168 L146 196" stroke="#4E3B26" stroke-width="2"/>
+    <g transform="translate(200 150)">
+      <rect x="-10" y="2" width="20" height="40" rx="7" fill="#E2445F"/>
+      <circle cx="0" cy="-9" r="10" fill="#FF5C77"/>
+    </g>
+    <g stroke="#1ED8A0" stroke-width="2" stroke-linecap="round">
+      <path d="M200 132 V140M200 160 V168M182 150 H190M210 150 H218"/>
+    </g>
+  </svg>
+</template>
+
+<script src="app.js"></script>
+</body>
+</html>
