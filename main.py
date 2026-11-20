@@ -48,6 +48,7 @@ import webview
 from overlay import FpsOverlay
 from nvidia_profile import import_fortnite_profile
 from display_effects import GameContrast
+from account_stats import AccountStats, LocalPlaytime
 
 IS_WIN = sys.platform == "win32"
 
@@ -556,6 +557,10 @@ class NvVibrance:
 # =====================================================================
 class Api:
     def __init__(self):
+        try:
+            self._is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
+        except (OSError, AttributeError):
+            self._is_admin = False
         self._window = None
         self._overlay = None
         self._overlay_settings = self._load_overlay_settings()
@@ -570,6 +575,8 @@ class Api:
         self._vib_active = False
         self._stop_event = threading.Event()
         self._contrast = GameContrast()
+        self._account_stats = AccountStats(DATA, _steam_root())
+        self._playtime = LocalPlaytime(DATA, {gid: info["exe"] for gid, info in GAME_INFO.items()})
         try:
             saved = json.loads(CONTRAST_SETTINGS_FILE.read_text(encoding="utf-8"))
             self._contrast.set_level(int(saved.get("level", 100)))
@@ -580,6 +587,7 @@ class Api:
         self._gpu_name_fallback = self._detect_gpu_name()
         psutil.cpu_percent(None)  # первый вызов всегда 0 — «прогреваем»
         threading.Thread(target=self._vibrance_watcher, daemon=True).start()
+        threading.Thread(target=self._playtime.run, args=(self._stop_event,), daemon=True).start()
 
     # ---------- служебное ----------
     @staticmethod
@@ -728,6 +736,11 @@ class Api:
 
     def _on_closed(self):
         self._stop_event.set()
+        try:
+            self._playtime.tick()
+            self._playtime.save()
+        except Exception:
+            pass
         try:
             self._contrast.restore()
         except Exception:
@@ -1095,6 +1108,33 @@ class Api:
             result[gid] = {"found": path is not None, "path": str(path) if path else None}
         return result
 
+    def get_accounts_overview(self):
+        try:
+            return {**self._account_stats.overview(), "local_playtime": self._playtime.overview()}
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
+    def get_app_status(self):
+        return {"ok": True, "administrator": self._is_admin}
+
+    def add_game_account(self, game_id, name, profile_ref=""):
+        return self._account_stats.add(game_id, name, profile_ref)
+
+    def remove_game_account(self, account_id):
+        return self._account_stats.remove(account_id)
+
+    def set_steam_api_key(self, key):
+        return self._account_stats.set_steam_key(key)
+
+    def refresh_account_stats(self):
+        try:
+            result = self._account_stats.refresh()
+            if result.get("ok"):
+                result["local_playtime"] = self._playtime.overview()
+            return result
+        except Exception as exc:
+            return {"ok": False, "error": str(exc)}
+
     def backup_game_config(self, game_id):
         try:
             if game_id not in GAME_INFO:
@@ -1153,14 +1193,6 @@ def main():
         raise SystemExit("Velox работает только в Windows")
     if not WEB_INDEX.is_file():
         raise SystemExit(f"Фронтенд не найден: {WEB_INDEX}")
-    try:
-        is_admin = bool(ctypes.windll.shell32.IsUserAnAdmin())
-    except OSError:
-        is_admin = False
-    if not is_admin:
-        ctypes.windll.user32.MessageBoxW(
-            None, "Velox запущен без прав администратора. Некоторые игровые конфиги могут быть недоступны для записи.",
-            "Velox", 0x30)
     DATA.mkdir(parents=True, exist_ok=True)
     api = Api()
     window = webview.create_window(

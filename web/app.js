@@ -161,6 +161,12 @@
         valorant: { found: true, path: 'C:\\Riot Games\\VALORANT\\live' },
       };
     },
+    async get_accounts_overview() { return { ok: true, accounts: [], counts: { fortnite: 0, cs2: 0, rust: 0, valorant: 0 }, steam_detected: [], steam_key_ready: false, local_playtime: { hours: {} } }; },
+    async get_app_status() { return { ok: true, administrator: true }; },
+    async add_game_account() { return { ok: false, error: 'Аккаунты доступны в десктопной версии Velox' }; },
+    async remove_game_account() { return { ok: false, error: 'Аккаунты доступны в десктопной версии Velox' }; },
+    async set_steam_api_key() { return { ok: false, error: 'Steam API доступен в десктопной версии Velox' }; },
+    async refresh_account_stats() { return { ok: false, error: 'Steam API доступен в десктопной версии Velox' }; },
     async set_vibrance_auto() { await sleep(150); return { ok: true }; },
     async set_scaling_mode() { await sleep(150); return { ok: true }; },
     async minimize_window() { toast('Свернуть окно можно внутри pywebview. Сейчас открыт браузерный превью-режим.', 'info'); return { ok: true }; },
@@ -235,7 +241,7 @@
         this.items[n].focus();
       });
       document.addEventListener('keydown', (e) => {
-        if (e.ctrlKey && !e.shiftKey && !e.altKey && /^[1-4]$/.test(e.key)) {
+        if (e.ctrlKey && !e.shiftKey && !e.altKey && /^[1-5]$/.test(e.key)) {
           e.preventDefault();
           this.go(this.items[+e.key - 1].dataset.page);
         }
@@ -1023,10 +1029,6 @@
     timer: null,
 
     init() {
-      const tpl = $('#tplVibScene');
-      $('#compareBase').appendChild(tpl.content.cloneNode(true));
-      $('#compareAfter').appendChild(tpl.content.cloneNode(true));
-
       const slider = $('#vibSlider');
       slider.value = this.level;
       slider.addEventListener('input', () => this.preview(+slider.value));
@@ -1198,6 +1200,130 @@
       this.level = level;
       $('#contrastStatus').textContent = level === 100 ? 'Контраст выключен.' : `Контраст ${level}% включится только когда окно игры активно.`;
       toast(level === 100 ? 'Контраст выключен' : `Контраст ${level}% сохранён для игр`, 'ok');
+    },
+  };
+
+  /* =========================================================
+     Аккаунты и проверяемая статистика
+     ========================================================= */
+  const Accounts = {
+    data: null,
+    init() {
+      $('#accountGame').addEventListener('change', () => this.updateRefHint());
+      $('#accountForm').addEventListener('submit', (e) => { e.preventDefault(); this.add(); });
+      $('#steamKeyApply').addEventListener('click', () => this.setKey());
+      $('#accountsRefresh').addEventListener('click', () => this.refresh());
+      $('#accountsGames').addEventListener('click', (e) => {
+        const btn = e.target.closest('[data-remove-account]');
+        if (btn) this.remove(btn.dataset.removeAccount);
+      });
+      document.addEventListener('pagechange', (e) => {
+        if (e.detail === 'accounts') this.load();
+      });
+      this.updateRefHint();
+    },
+    updateRefHint() {
+      const steam = ['cs2', 'rust'].includes($('#accountGame').value);
+      $('#accountRefLabel').textContent = steam ? 'Steam ID64 или ссылка на профиль' : 'Ссылка на профиль (необязательно)';
+      $('#accountRef').placeholder = steam ? '7656119… или https://steamcommunity.com/profiles/…' : 'https://…';
+      $('#accountRef').required = steam;
+      $('#accountRefHint').textContent = steam
+        ? 'Часы игры и общие баны Steam появятся после ввода вашего API-ключа.'
+        : 'Часы и срок блокировки этой игры недоступны через открытый API.';
+    },
+    async load() {
+      const result = await Bridge.call('get_accounts_overview');
+      if (result.ok === false) { toast(errText(result, 'Не удалось прочитать аккаунты'), 'err'); return; }
+      this.data = result;
+      this.render();
+    },
+    render() {
+      const data = this.data || { accounts: [], steam_detected: [], steam_key_ready: false };
+      const accounts = Array.isArray(data.accounts) ? data.accounts : [];
+      const detected = Array.isArray(data.steam_detected) ? data.steam_detected : [];
+      $('#accountsTotal').textContent = String(accounts.length);
+      $('#steamDetectedCount').textContent = String(detected.length);
+      $('#steamDataState').textContent = data.steam_key_ready ? 'Подключён' : 'Нет ключа';
+      $('#steamDetectedList').innerHTML = detected.length
+        ? detected.map((p) => `<span class="accounts-detected"><b>${esc(p.name)}</b><small class="mono">${esc(p.steam_id)}</small></span>`).join('')
+        : '<span class="accounts-empty">Steam не найден или в нём нет запомненных профилей.</span>';
+      $('#accountsGames').innerHTML = GAMES.map((game) => {
+        const linked = accounts.filter((a) => a.game_id === game.id);
+        const localHours = data.local_playtime?.hours?.[game.id] ?? 0;
+        return `<article class="panel accounts-game">
+          <div class="accounts-game__head"><img src="assets/${game.id}.png" alt=""><div><h3>${esc(game.name)}</h3><small>${linked.length} аккаунтов добавлено</small></div></div>
+          <div class="accounts-local-time">На этом ПК, пока Velox работал: <b>${nf1.format(localHours)} ч</b></div>
+          <div class="accounts-game__list">${linked.length ? linked.map((a) => this.accountHtml(a)).join('') : '<p class="accounts-empty">Профили ещё не добавлены.</p>'}</div>
+        </article>`;
+      }).join('');
+    },
+    accountHtml(a) {
+      const s = a.stats || null;
+      const steam = ['cs2', 'rust'].includes(a.game_id);
+      const profile = s && s.profile_url ? s.profile_url : a.ref;
+      let link = '';
+      try { if (profile && new URL(profile).protocol === 'https:') link = profile; } catch (_) { /* Steam ID64 is not a link */ }
+      const linkHtml = link ? `<a href="${esc(link)}" target="_blank" rel="noopener noreferrer">Открыть профиль</a>` : '';
+      let details;
+      if (!steam) {
+        details = '<span>Время игры и срок блокировки: нет открытого доступа.</span>';
+      } else if (s && s.error) {
+        details = `<span class="accounts-error">${esc(s.error)}</span>`;
+      } else if (s) {
+        const hours = s.hours_total == null ? 'Недоступно' : `${nf1.format(s.hours_total)} ч`;
+        const recent = s.hours_2weeks == null ? 'Недоступно' : `${nf1.format(s.hours_2weeks)} ч`;
+        const bans = s.steam_bans || {};
+        const banText = s.steam_bans
+          ? `Steam: VAC <b>${nf0.format(bans.vac)}</b>, игровые баны <b>${nf0.format(bans.game)}</b>${bans.community ? ', блокировка сообщества' : ''}`
+          : 'Данные о банах Steam недоступны';
+        const ach = s.achievements
+          ? `<span>Достижения: <b>${nf0.format(s.achievements.unlocked)} / ${nf0.format(s.achievements.total)}</b></span>` : '';
+        details = `<span>Наиграно в игре: <b>${hours}</b>; за 2 недели: <b>${recent}</b></span>
+          ${ach}<span>${banText}</span>
+          <span>До конца бана: <b>неизвестно</b> — Steam не сообщает срок.</span>
+          <small>Баны относятся к Steam-аккаунту в целом. ${esc(s.hours_note || '')}</small>`;
+      } else {
+        details = '<span>Введите Steam API-ключ и обновите статистику.</span>';
+      }
+      return `<div class="accounts-account"><div class="accounts-account__title"><b>${esc(a.name)}</b><button type="button" data-remove-account="${esc(a.id)}" aria-label="Удалить аккаунт ${esc(a.name)}">×</button></div>
+        ${s && s.persona ? `<small>Steam: ${esc(s.persona)}</small>` : ''}
+        <div class="accounts-account__stats">${details}</div>${linkHtml}</div>`;
+    },
+    async add() {
+      const btn = $('#accountForm button[type="submit"]');
+      setLoading(btn, true);
+      const result = await Bridge.call('add_game_account', $('#accountGame').value,
+        $('#accountName').value, $('#accountRef').value);
+      setLoading(btn, false);
+      if (result.ok === false) { toast(errText(result, 'Не удалось добавить аккаунт'), 'err'); return; }
+      $('#accountName').value = '';
+      $('#accountRef').value = '';
+      toast('Аккаунт добавлен', 'ok');
+      await this.load();
+    },
+    async remove(id) {
+      const result = await Bridge.call('remove_game_account', id);
+      if (result.ok === false) { toast(errText(result, 'Не удалось удалить аккаунт'), 'err'); return; }
+      await this.load();
+    },
+    async setKey() {
+      const field = $('#steamApiKey');
+      const result = await Bridge.call('set_steam_api_key', field.value);
+      if (result.ok === false) { toast(errText(result, 'Ключ не принят'), 'err'); return; }
+      field.value = '';
+      toast('Ключ принят только на этот запуск Velox', 'ok');
+      await this.load();
+      await this.refresh();
+    },
+    async refresh() {
+      const btn = $('#accountsRefresh');
+      setLoading(btn, true);
+      const result = await Bridge.call('refresh_account_stats');
+      setLoading(btn, false);
+      if (result.ok === false) { toast(errText(result, 'Статистику получить не удалось'), 'err'); return; }
+      this.data = result;
+      this.render();
+      toast('Доступная статистика Steam обновлена', 'ok');
     },
   };
 
@@ -1477,6 +1603,13 @@
     await Bridge.call('set_scaling_mode', Res.stretch);
   }
 
+  async function showAppStatus() {
+    const status = await Bridge.call('get_app_status');
+    if (status.ok && status.administrator === false) {
+      toast('Velox запущен без прав администратора. Некоторые игровые настройки могут быть недоступны.', 'info', 6500);
+    }
+  }
+
   async function boot() {
     Nav.init();
     initWindow();
@@ -1485,12 +1618,15 @@
     Drawer.init();
     Vib.init();
     Contrast.init();
+    Accounts.init();
     Res.init();
 
     const live = await waitForBridge();
     setLive(live);
+    if (live) showAppStatus();
     await OverlaySettings.load();
     await Contrast.load();
+    await Accounts.load();
     if (!live) {
       // в демо-режиме сразу заполняем графики историей, чтобы превью не было пустым
       for (let i = 0; i < FPS_LEN; i++) {
@@ -1505,8 +1641,10 @@
       // pywebview может подняться позже — переключимся на живые данные
       window.addEventListener('pywebviewready', () => {
         setLive(true);
+        showAppStatus();
         OverlaySettings.load();
         Contrast.load();
+        Accounts.load();
         restoreBackendState();
         Dash.hist = { cpu: [], gpu: [], ram: [], fps: [] };
         Res.nativeKnown = false;

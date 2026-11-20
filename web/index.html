@@ -88,6 +88,11 @@
           </svg>
           <span>Растяг экрана</span>
         </button>
+
+        <button class="nav__item" type="button" role="tab" data-page="accounts" aria-controls="page-accounts" title="Ctrl+5">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M2.5 19v-1.5A5.5 5.5 0 0 1 8 12a5.5 5.5 0 0 1 5.5 5.5V19z"/><circle cx="17" cy="8.5" r="2.5"/><path d="M17 13a4.5 4.5 0 0 1 4.5 4.5V19h-5"/></svg>
+          <span>Аккаунты</span>
+        </button>
       </div>
 
       <div class="sidebar__foot">
@@ -297,8 +302,8 @@
         <div class="vib">
           <div class="panel vib__preview">
             <div class="compare" id="compare">
-              <div class="compare__layer compare__base" id="compareBase"></div>
-              <div class="compare__layer compare__after" id="compareAfter"></div>
+              <div class="compare__layer compare__base" id="compareBase"><img src="assets/contrast-landscape.png" alt="Природный пейзаж для сравнения цветов"></div>
+              <div class="compare__layer compare__after" id="compareAfter"><img src="assets/contrast-landscape.png" alt=""></div>
               <div class="compare__handle" id="compareHandle" role="slider" tabindex="0"
                    aria-label="Граница сравнения" aria-valuemin="0" aria-valuemax="100" aria-valuenow="50">
                 <span>
@@ -345,6 +350,53 @@
               <label for="contrastSlider">Контраст только в активной игре: <b id="contrastValue">100%</b></label>
               <input type="range" id="contrastSlider" min="100" max="130" step="1" value="100">
               <small id="contrastStatus">100% — без изменений. При переключении на другое окно исходный контраст вернётся.</small>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ===== Аккаунты и игровая статистика ===== -->
+      <section class="page" id="page-accounts" role="tabpanel">
+        <header class="page__head">
+          <div>
+            <h1>Аккаунты и статистика</h1>
+            <p>Добавьте свои профили. Velox показывает только данные, которые доступны из указанного источника.</p>
+          </div>
+          <button class="btn btn--ghost" type="button" id="accountsRefresh">Обновить статистику</button>
+        </header>
+
+        <div class="accounts-summary panel">
+          <div><b id="accountsTotal">0</b><span>добавлено аккаунтов</span></div>
+          <div><b id="steamDetectedCount">—</b><span>Steam-профилей на этом ПК</span></div>
+          <div><b id="steamDataState">Нет ключа</b><span>доступ к Steam API</span></div>
+        </div>
+
+        <div class="accounts-layout">
+          <div class="accounts-primary">
+            <div class="accounts-games" id="accountsGames"></div>
+            <article class="panel accounts-local">
+              <h3>Steam на этом ПК</h3>
+              <p>Список профилей, запомненных Steam. Это не подтверждает владение CS2 или Rust.</p>
+              <div id="steamDetectedList">Проверяю…</div>
+            </article>
+          </div>
+
+          <div class="accounts-side">
+            <form class="panel accounts-form" id="accountForm">
+              <h3>Добавить аккаунт</h3>
+              <label class="field"><span>Игра</span><select id="accountGame"><option value="fortnite">Fortnite</option><option value="cs2">Counter-Strike 2</option><option value="rust">Rust</option><option value="valorant">Valorant</option></select></label>
+              <label class="field"><span>Название аккаунта</span><input id="accountName" maxlength="60" placeholder="Мой аккаунт" required></label>
+              <label class="field"><span id="accountRefLabel">Ссылка на профиль (необязательно)</span><input id="accountRef" maxlength="240" placeholder="https://…"></label>
+              <p class="accounts-hint" id="accountRefHint">Для Fortnite и Valorant данные профиля могут быть закрыты.</p>
+              <button class="btn btn--primary" type="submit">Добавить</button>
+            </form>
+
+            <div class="panel accounts-key">
+              <h3>Данные Steam</h3>
+              <p>Для часов CS2 и Rust, а также общих блокировок Steam нужен ваш <a href="https://steamcommunity.com/dev/apikey" target="_blank" rel="noopener noreferrer">Steam Web API-ключ</a>. Он хранится только до закрытия Velox.</p>
+              <label class="field"><span>Steam Web API-ключ</span><input id="steamApiKey" type="password" autocomplete="off" placeholder="32 символа"></label>
+              <button class="btn btn--ghost" type="button" id="steamKeyApply">Применить ключ</button>
+              <p class="accounts-hint">Steam показывает количество блокировок аккаунта, но не сообщает срок их окончания. Блокировка может относиться к другой игре.</p>
             </div>
           </div>
         </div>

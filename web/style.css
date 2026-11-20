@@ -989,8 +989,50 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
   touch-action: none;
 }
 .compare__layer { position: absolute; inset: 0; }
+.compare__layer img { display: block; width: 100%; height: 100%; object-fit: cover; object-position: center; }
 .compare__layer svg { width: 100%; height: 100%; display: block; }
 .compare__after { clip-path: inset(0 0 0 var(--split)); filter: saturate(var(--sat)) contrast(var(--contrast-factor, 1)); }
+
+/* Аккаунты */
+.accounts-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; padding: 18px 22px; }
+.accounts-summary > div { display: flex; flex-direction: column; gap: 4px; }
+.accounts-summary b { font-size: 23px; line-height: 1.1; color: var(--text); }
+.accounts-summary span { font-size: 12px; color: var(--text-3); }
+.accounts-layout { display: grid; grid-template-columns: minmax(0, 1fr) 310px; gap: 16px; align-items: start; }
+.accounts-primary, .accounts-side { display: grid; gap: 16px; min-width: 0; }
+.accounts-games { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.accounts-game { padding: 0; overflow: hidden; min-height: 180px; }
+.accounts-game__head { display: flex; gap: 12px; align-items: center; padding: 12px; border-bottom: 1px solid var(--line); }
+.accounts-game__head img { width: 58px; height: 58px; border-radius: 9px; object-fit: cover; }
+.accounts-game__head h3 { font-size: 15px; }
+.accounts-game__head small { color: var(--text-3); font-size: 11px; }
+.accounts-local-time { padding: 10px 12px 0; color: var(--text-3); font-size: 11px; }
+.accounts-local-time b { color: var(--text-2); }
+.accounts-game__list { padding: 12px; display: grid; gap: 10px; }
+.accounts-empty { color: var(--text-3); font-size: 12px; }
+.accounts-account { padding: 11px; border-radius: 10px; border: 1px solid var(--line-strong); background: rgba(255,255,255,.025); overflow-wrap: anywhere; }
+.accounts-account__title { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.accounts-account__title b { font-size: 13px; }
+.accounts-account__title button { font-size: 19px; color: var(--text-3); line-height: 1; padding: 2px 5px; }
+.accounts-account__title button:hover { color: var(--red); }
+.accounts-account__stats { display: grid; gap: 5px; margin-top: 7px; color: var(--text-2); font-size: 11.5px; }
+.accounts-account__stats b { color: var(--text); }
+.accounts-account__stats small { color: var(--text-3); }
+.accounts-error { color: #FF8FA3; }
+.accounts-account a, .accounts-key a { display: inline-block; margin-top: 6px; color: #91B5FF; text-decoration: none; font-size: 12px; }
+.accounts-account a:hover, .accounts-key a:hover { text-decoration: underline; }
+.accounts-local, .accounts-form, .accounts-key { padding: 18px; }
+.accounts-local h3, .accounts-form h3, .accounts-key h3 { font-size: 15px; margin-bottom: 8px; }
+.accounts-local p, .accounts-key p { color: var(--text-2); font-size: 12px; line-height: 1.5; margin-bottom: 12px; }
+.accounts-local #steamDetectedList { display: flex; flex-wrap: wrap; gap: 7px; }
+.accounts-detected { display: inline-flex; flex-direction: column; gap: 2px; border: 1px solid var(--line-strong); border-radius: 8px; padding: 7px 10px; }
+.accounts-detected b { font-size: 12px; }
+.accounts-detected small { font-size: 10px; color: var(--text-3); }
+.accounts-form .field, .accounts-key .field { display: block; margin-top: 12px; }
+.accounts-form .field input, .accounts-form .field select, .accounts-key .field input { width: 100%; min-width: 0; height: 38px; padding: 0 10px; color: var(--text); background: #0e121c; border: 1px solid var(--line-strong); border-radius: 8px; outline: none; }
+.accounts-form .field select:focus, .accounts-form .field input:focus, .accounts-key .field input:focus { border-color: #6F8DFF; }
+.accounts-form .btn, .accounts-key .btn { margin-top: 14px; width: 100%; }
+.accounts-hint { font-size: 11px !important; color: var(--text-3) !important; line-height: 1.45; margin-top: 8px; }
 
 .compare__handle {
   position: absolute;
@@ -1360,6 +1402,8 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
    Адаптив
    ========================================================= */
 @media (max-width: 1180px) {
+  .accounts-layout { grid-template-columns: minmax(0, 1fr) 270px; }
+  .accounts-games { grid-template-columns: minmax(0, 1fr); }
   .games { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .game { aspect-ratio: 16 / 10; max-height: none; }
   .fps__body { grid-template-columns: 170px minmax(0, 1fr); }
@@ -1369,6 +1413,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 
 @media (max-width: 980px) {
+  .accounts-layout { grid-template-columns: minmax(0, 1fr); }
   :root { --sidebar: 72px; }
   .nav__item { justify-content: center; padding: 0; }
   .nav__item span, .conn__text, .titlebar__sub { display: none; }
@@ -1378,6 +1423,7 @@ button { font: inherit; color: inherit; background: none; border: 0; cursor: poi
 }
 
 @media (max-width: 720px) {
+  .accounts-summary { grid-template-columns: minmax(0, 1fr); }
   .main { padding: 18px 16px 22px; }
   .page__head { flex-direction: column; align-items: flex-start; }
   .hw-grid { grid-template-columns: minmax(0, 1fr); }
